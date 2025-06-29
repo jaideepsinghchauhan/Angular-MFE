@@ -1,3 +1,8 @@
+# This Repo include ! host/Appshell and 2 MFE's and 2 Libraries  1 Library is for data sharing between MFEs and another is for shared html components(common used resources)
+  
+# Install NX vscode extention for faster and easier use of NX
+
+
 # AngularMonorepo
 
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
@@ -99,3 +104,280 @@ And join the Nx community:
 - [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
 - [Our Youtube channel](https://www.youtube.com/@nxdevtools)
 - [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+
+
+
+
+npx create-nx-workspace@latest angular-monorepo --preset=angular-monorepo
+
+From <https://nx.dev/getting-started/tutorials/angular-monorepo-tutorial> 
+
+Use - PowerShell
+
+√ Application name · angular-monorepo
+√ Which bundler would you like to use? · webpack
+√ Default stylesheet format · css
+√ Do you want to enable Server-Side Rendering (SSR) and Static Site Generation (SSG/Prerendering)? · No
+√ Which unit test runner would you like to use? · none
+√ Test runner to use for end to end (E2E) tests · cypress
+√ Which CI provider would you like to use? · skip
+√ Would you like remote caching to make your build faster? · skip
+
+ NX   Creating your v21.2.0 workspace.
+
+
+	2. Generate a Host angular app
+		a. Click on the NX in vscode and click generate search for host app and create a name host and directory appshell/host
+
+Now we can see the mapping in host module federation config file for both mfes
+but that is for localhost , if we want to set it for production level , then we need to add the url mapping there in prod mfe config file as well.
+
+How is the host/appshell connected with mfe
+we have an remote entry module that we export from mfe and map to module federation config file in host
+
+along with that we use lazy loading to import and that mapping is in general available in host/appshell app routes, so that we only load mfe which we want to navigate to. 
+
+we can create one more mfe2 for similar case.
+
+Instead of exporting 1 single module, we can also export multiple smaller modules from and app and then give then as an individual mfe
+
+We need to create a component, for easy demo lets take a standalone component rather than a module
+
+Create a folder greeting and 2 files  (greeting.component.ts and greeting.routes.ts)
+
+//greeting.component.ts
+// apps/mfe1/src/app/greeting/greeting.component.ts
+import { Component } from '@angular/core';
+@Component({
+  selector: 'mfe1-greeting',
+  standalone: true,
+  template: `<h2>Hello from Greeting Component!</h2>`,
+})
+export class GreetingComponent {}
+
+
+// greeting.routes.ts
+import { Route } from '@angular/router';
+export const greetingRoutes: Route[] = [
+  {
+    path: '',
+    loadComponent: () =>
+      import('./greeting.component').then((m) => m.GreetingComponent),
+  },
+];
+
+Update mfe1 module federation with this new route 
+
+add this line : 
+
+
+'./GreetingRoutes': 'appshell/mfe1/src/app/greeting/greeting.routes.ts',
+
+full file :
+
+
+import { ModuleFederationConfig } from '@nx/module-federation';
+const config: ModuleFederationConfig = {
+  name: 'mfe1',
+  exposes: {
+    './Routes': 'appshell/mfe1/src/app/remote-entry/entry.routes.ts',
+    './GreetingComponent':
+      'appshell/mfe1/src/app/greeting/greeting.component.ts',
+  },
+};
+export default config;
+
+
+in app.routes.ts add this entry below so that it works as a standalone component as well.
+
+
+  {
+    path: 'greeting',
+    loadChildren: () =>
+      import('./greeting/greeting.routes').then((m) => m.greetingRoutes),
+  },
+
+
+Now lets head towards  host/appshell folder 
+
+under host/src/app/app.route.ts
+
+add this entry :
+
+
+  {
+    path: 'greeting',
+    loadChildren: () =>
+      import('mfe1/GreetingRoutes').then((m) => m.greetingRoutes),
+  },
+
+If you encounter this error Cannot find module 'mfe1/GreetingRoutes' or its corresponding type declarations
+
+then we need to follow these steps
+
+1. Create a remotes.d.ts in host/src/
+This tells TypeScript about the remote modules you've exposed.
+
+ts
+CopyEdit
+// host/src/remotes.d.ts
+declare module 'mfe1/Routes' {
+  import { Route } from '@angular/router';
+  export const remoteRoutes: Route[];
+}
+declare module 'mfe1/GreetingRoutes' {
+  import { Route } from '@angular/router';
+  export const greetingRoutes: Route[];
+}
+You can include declarations for any other exposed modules (like mfe2/Routes) here too if needed.
+
+🔹 2. Make sure remotes.d.ts is included in tsconfig.app.json
+Normally this happens automatically, but just confirm:
+
+json
+CopyEdit
+// host/tsconfig.app.json
+{
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "files": ["src/remotes.d.ts"], //need to add this particular line
+  "include": ["src/**/*"]
+}
+
+Now we need to restart the server and see that it works as an independent standalone mfe.
+
+Why am I not updating the module federation config for host ? 
+
+Lets take a look at how we share data between components/mfe's in appshell/host
+
+Lets go to Nx plugin in vscode and click generate and select nx/angular library
+
+create a directory libs/shared/ui and name as 'button' click generate
+
+
+Now we will have a libs folder next to appshell folder which has button component as standalone. And Now a library is created
+
+we can check the tsconfig.base.json for the library to see the button address and import that button in hosts/appshell app.component.ts or app.ts and put it into imports module. 
+
+
+sample : 
+
+
+import { Component } from '@angular/core';
+import { RouterModule } from '@angular/router';
+import { NxWelcome } from './nx-welcome';
+import { Button } from '@angular-monorepo/button';
+@Component({
+  imports: [NxWelcome, RouterModule, Button],
+  selector: 'app-root',
+  templateUrl: './app.html',
+  styleUrl: './app.css',
+})
+export class App {
+  protected title = 'host';
+}
+
+If I want to import and use this button in mfe1 or mfe2 I can simple import that into entry module of mfe1 and use the same import statement from tsconfig.base.json 
+
+So after I imported and save I got this error :
+
+
+8     <lib-button [label]="'Click Me'"></lib-button>
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Error: appshell/mfe1/src/app/remote-entry/nx-welcome.ts:8:17 - error NG8002: Can't bind to 'label' since it isn't a known property of 'lib-button'.
+1. If 'lib-button' is an Angular component and it has 'label' input, then verify that it is included in the '@Component.imports' of this component.
+2. If 'lib-button' is a Web Component then add 'CUSTOM_ELEMENTS_SCHEMA' to the '@Component.schemas' of this component to suppress this message.
+3. To allow any property add 'NO_ERRORS_SCHEMA' to the '@Component.schemas' of this component. 
+
+To resolve this :  Do I need to restart the host server Or fix some issues in the import
+
+there is no issue we need to refresh the setup and also restart the host server again.
+
+to not restart everything we can simply update the base module and save , it should update the whole.
+
+To Share the data across the MFE, we need to create one more library using nx angular library
+
+the path will be same libs/shared/data but don’t enter any name, now we need to create a service using nx generate service within the libs/shared/data/src/lib/
+
+Now we might not see the lib Data because we need to refresh this workspace
+
+Below is the user service
+
+
+import { Injectable, signal } from '@angular/core';
+@Injectable({
+  providedIn: 'root',
+})
+export class UserService {
+  private isLoggenIn = signal(false);
+  constructor() {}
+  login() {
+    this.isLoggenIn.set(true);
+  }
+  logout() {
+    this.isLoggenIn.set(false);
+  }
+  get isLoggedIn() {
+    return this.isLoggenIn;
+  }
+}
+
+We need to inject this into app.ts (not import into the array) and inject it sample:
+
+
+
+import { UserService } from '@angular-monorepo/data';
+@Component({
+  imports: [NxWelcome, RouterModule, Button],
+  selector: 'app-root',
+  templateUrl: './app.html',
+  styleUrl: './app.css',
+})
+export class App {
+  public readonly userService = inject(UserService);
+
+No we can use this methods inside app.ts
+
+So let's say logout and login works, now how do I use this service in a mfe , we can simply inject the same service in mfe and work with it, we do need to restart the server once.
+
+
+I will go to mfe
+
+
+Example in mfe1 nx-welcome component.ts
+
+
+
+import { Component, inject, ViewEncapsulation } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { UserService } from '@angular-monorepo/data';
+@Component({
+  selector: 'app-nx-welcome',
+  imports: [CommonModule],
+  template: `
+
+      isLogged In {{ isLoggedIn }}
+
+      <div class="container">
+        <!--  WELCOME  -->
+        <div id="welcome">
+          <h1>
+            <span> Hello there, </span>
+            Welcome mfe1 👋
+          </h1>
+        </div>
+        </div>
+  `,
+  styles: [],
+  encapsulation: ViewEncapsulation.None,
+})
+export class NxWelcome {
+  public userService = inject(UserService);
+  get isLoggedIn() {
+    return this.userService.isLoggedIn();
+  }
+}
+![image](https://github.com/user-attachments/assets/d79fb3c0-f699-41a9-a906-474e0a5decd8)
