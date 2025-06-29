@@ -1,5 +1,7 @@
-# This Repo include ! host/Appshell and 2 MFE's and 2 Libraries  1 Library is for data sharing between MFEs and another is for shared html components(common used resources)
-  
+# This Repo include 1 host/Appshell and 2 MFE's and 2 Libraries
+  1 Library is for data sharing between MFEs and another is for shared html components(common used resources)
+  an example also includes 1 mfes which has 2 independent separate component being export and both lazyloaded based on the route.
+
 # Install NX vscode extention for faster and easier use of NX
 
 
@@ -106,7 +108,7 @@ And join the Nx community:
 - [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
 
-
+# Steps i have taken to install
 
 npx create-nx-workspace@latest angular-monorepo --preset=angular-monorepo
 
